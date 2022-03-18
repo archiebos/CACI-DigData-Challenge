@@ -1,0 +1,569 @@
+
+PLEASE IMPORT BOTH DATA SETS BEFORE RUNNING THE DATA.
+
+INTRODUCTION:15-20
+
+EXPLORATORY ANALYSIS:34-203
+
+MODEL DEVELOPMENT:222-432
+
+DATA SET 2:450-564
+
+
+INTRODUCTION:
+
+The aim of this project is to try and identify 250 individuals to contact regarding an exclusive launch party. To do this the use of a data set, with 10,000 consumers, will be used to create a model to predict whether customers will be interested into the sustainable product. The model will then be applied to the second data set to calculate the probability of interest being shown based on similar characteristics. The subset of the top 250 consumers will then be made.
+
+The method of modelling that I will be us is logistic regression, which outputs a probabilistic value between 0 and 1 which can be interpretted as: not interested at all and definitely interested respectively.This method has the assumption that there is no, or very little correlation between each covariate in the model to prevent multicollinearity occuring.
+The main issue that i faced was in my exploratory analysis, trying to calculate which variables would be appropriate to include without breaching the the assumptions of logistic regression.
+
+I First started by importing the data set and changing any character variables into classes that can be analysed in an easier way. I coverted gender into into numerical values where male female and other took the values 1,2 and 3 respectively. I then used one hot coding to separate the different age intervals into a binary system.
+
+```{r}
+library(faraway)
+library(VIF)
+library(MASS)
+library(vroom)
+library(dplyr)
+library(tidyverse)
+library(reshape)
+data<- CACIDataset1
+data
+attach(data)
+```
+```{r}
+str(data)
+str(Gender)
+
+data<- data %>% mutate(Gender= replace(Gender, Gender=='M',1))
+data<- data %>% mutate(Gender= replace(Gender, Gender=='F',2))
+data<- data %>% mutate(Gender= replace(Gender, Gender=='O',3))
+
+data$Gender<- as.integer(data$Gender)
+data$Gender
+
+data
+
+```
+Now converting Age into a binary operator
+```{r}
+
+class(data)
+
+data1<- model.matrix(data$`Interested in sustainable range`~data$Age)[,-1]
+data1
+
+#new data is the set where it includes one hot coding for age, now just need to remove the original age column
+
+newdata<- cbind(data1,data)
+newdata
+
+# removing the age column
+
+newdata<- newdata[,-c(10)]
+newdata
+```
+I saved the changes to the original data as 'new data'
+
+```{r}
+
+summary(newdata)
+```
+
+To understand the relationship between the data, i plotted the correlation between each of them in the form of a heat map to make it easier to visualise.I also looked at the value of the correlation between each of the variables and the one of interest.
+
+```{r}
+corr_with_interest<- cor(newdata[-8], newdata$`Interested in sustainable range`)
+corr_with_interest
+
+corr_new_data<- cor(newdata)
+corrplot(corr_new_data, method='color', tl.cex = 0.3, order = "hclust")
+```
+From this we can see that a high proportion of the data are highly correlated with one another so more analysis is required to work out which variables to include.
+
+Before any further analysis, I wanted to look at the correlation between variables that i originally thought were going to be the most significant, to see how many of them i could include in my model. These variables were:
+Age, Social media usage (including tiktok, facebook, netflix e.t.c ...), internet usage, shopping trends and finally how influencial adverts are to an individual.
+
+
+```{r}
+OGcor<-cor(newdata[c(1:6, 10,29,32,27,28,53,34,46,47, 45, 44, 43, 42)] )
+corrplot(OGcor,method='color', tl.cex = 0.3, order = "hclust")
+#Age seemed to have little corrlelation with everything so remove this to check the rest.
+
+OGcor1<-cor(newdata[c(10,29,32,27,28,53,34,46,47, 45, 44, 43,42)] )
+corrplot(OGcor1,method='number', tl.cex = 0.4, order = "hclust", number.cex = 0.5)
+# Everything has high correlation which means only one maybe two of these variables can be used in our models,
+
+#may need to change the size of the text or the numbers in order to view better.
+```
+All the Variables are highly correlated with each other so that needs to be considered when making the model. Internet usage has high correlation with medium and high, however relatively low with everything else. 
+
+I decided to categorise the variables into subsections which relate to each other to try and determine which of them correlate to the dependent variable the most. The subsections that i used were as followed:
+
+AGE- people from the age of 25-34 have the highest positive correlation and decreases as the age range gets older.
+```{r}
+Age_cor<- cor(newdata[1:6], newdata$`Interested in sustainable range`)
+cor(newdata[1:6],newdata[1:6])
+Age_cor
+```
+GENDER- Almost no correlation with the dependent variable so shouldn't be included in the model.
+```{r}
+Gender_cor<- cor(newdata[9], newdata[8])
+Gender_cor
+#Almost no correlation with gender and interest of the product therefore shouldnt be included
+```
+DIET- High correlation between choosing to be vegetarian and vegan, with approximately 0.2 correlation with the dependent variable. Only a maximum of one of these should be included in the model.
+```{r}
+vegie_cor<- cor(newdata[50], newdata[8])
+vegan_cor<- cor(newdata[11], newdata[8])
+cor(newdata[11], newdata[50])
+
+vegan_cor
+vegie_cor
+
+# Only a slight correlation between specific dietry preferences and the interest of product, high correlation between each of them, so if included, only one should be included
+```
+OCCUPATION- Some occupations have a higher correlation with the dependent variables than the others. Service sector has the highest correlation, and being retired has the lowest correlation.
+```{r}
+occ_cor<- cor(newdata[12:19], newdata[8])
+cor(newdata[12:19], newdata[12:19])
+occ_cor
+#High positive correlation if occupation is: office worker, professional or service sector (highest), large negative corr if retired, and v small anything else, high corrrelation amongst them all so only one should be included in the model
+
+```
+EDUCATION- None of the education variables have a correlation with the dependent variables, therefore non of them should be included in the model.
+```{r}
+edu_corr<- cor(newdata[20:22], newdata[8])
+edu_corr
+# Low correlation with level of qualification and interest in range, so non should be included in the model
+```
+BANK- The choice of bank also doesn't have a correlation.
+```{r}
+cor(newdata[26],newdata[8])
+
+cor(newdata[48],newdata[8])
+# The current account status isnt considered a high correlation therefore shouldnt be included in the model
+```
+
+INTERNET USAGE- Surprisingly the amount an individual uses the internet does not seem to be correlated with the dependent variable.
+```{r}
+cor(newdata[27:28],newdata[8])
+cor(newdata[53],newdata[8])
+```
+
+GADGET- Correlation value of 0.187 with dependent variable- so could potentially be used in the model.
+```{r}
+gadg_corr<-cor(newdata[33],newdata[8])
+gadg_corr
+# Not considered a high enough correlation if one loves to buy gadgets
+
+```
+ADVERTS- as expected, the amount an individual is influenced by adverts and the dependent variable is high. High correlation between each variable.
+
+```{r}
+adv_corr<- cor(newdata[46:47],newdata[8])
+cor(newdata[34],newdata[8])
+adv_corr
+cor(newdata[46:47],newdata[34])
+```
+TV- highest correlation with people who watch catch up TV
+
+```{r}
+Tv_corr<- cor(newdata[35:40],newdata[8])
+cor(newdata[35:40],newdata[35:40])
+Tv_corr
+
+# Highest correlation if one watches catch up TV at least once per week
+```
+SHOPPING HABITS- only one that doesn't have a high correlation is the 'preference of major high street chains'. All highly correlated with each other.
+
+```{r}
+shop_corr<-cor(newdata[42:45],newdata[8])
+shop_corr
+cor(newdata[42:45],newdata[42:45])
+```
+NUMBER OF CHILDREN- high correlation with each and the dependent variable, very high correlation with each of them so only one of the should be included. 0 children has biggest negative correlation, 2 children is biggest positive correlation.
+```{r}
+cor(newdata[54:57],newdata[8])
+#All of which are considered a high correlation, zero children is the highest negative correlation
+# 2 children is highest postive correlation
+cor(newdata[54:57],newdata[54:57])
+# all of which are highly correlated with one another so only one should be included in the model
+```
+
+SOCIALS- High correlation with dependent variables. However, very high correlation between each of them so only one should be considered.
+```{r}
+social_corr<- cor(newdata[29:32],newdata[8])
+social_corr
+cor(newdata[10],newdata[8])
+
+cor(newdata[29:32],newdata[29:32])
+cor(newdata[29:32],newdata[10])
+#Netflix, tiktok, facebook and snapchat are all highly correlated with interest, netflix being the highest, all extremely highly correlated with one another so only netflix should be included
+```
+
+I split the data into test and train to calculate the accuracy of each of the models. Also used to see if there is misclassification. 
+
+```{r}
+set.seed(101)
+n = nrow(newdata)
+trainIndex = sample(1:n, size = round(0.7*n), replace=FALSE)
+train = newdata[trainIndex ,]
+test = newdata[-trainIndex ,]
+
+```
+
+```{r}
+train
+test
+```
+
+I first considered all of the variables from each of the sub categories which has the highest correlation with the dependent variable. The following correlation plot shows how each of them relate to one another.
+```{r}
+corrmodel1<- cor(newdata[c(1:6,8,9,16,29,34,35,43,50,53,54)] )
+corrmodel1
+corrplot(corrmodel1, method = "number", tl.cex = 0.4, number.cex = 0.75)
+model1<- glm(train$`Interested in sustainable range`~ train$Gender+ train$`data$Age25-34`+train$`data$Age35-44`+train$`data$Age45-54`+train$`data$Age55-64`+train$`data$Age65-74`+train$`data$Age75+`+ train$`Interests : vegetarian products`+ train$`Occupation: Service Sector`+ train$`Internet: light user`+ train$`If an advert on the Internet looks interesting I will click on it`+ train$`Watches catch-up TV / VoD with ads at least once a week`+ train$`I look for the lowest possible prices when I go shopping`+ train$`Children at home : 0`+ train$`Uses Netflix, at least once a week`, data = train, family = 'binomial')
+
+vif(model1)
+```
+There is a high correlation amongst some of the variables so including them in the model will break the assumption of logistic regression. Multicollinearity can be assessed by computing the Variance Inflation Factor (VIF), which measures how much the variance of a regression coefficient is inflated due to multicollinearity in the model. In mathematics, a value that exceeds 10 is considered high, however due to highly correlated nature of the data, a value over 30 will be considered too high to include.
+
+Removing the highest one by one until all of the were below 30 achieved my first model:
+```{r}
+model0<- glm(`Interested in sustainable range`~  `data$Age25-34`+`data$Age35-44`+`data$Age45-54`+`data$Age55-64`+`data$Age65-74`+`data$Age75+` +`Children at home : 0`+Gender+`Occupation: Service Sector`+`Interests : vegetarian products`+`Watches catch-up TV / VoD with ads at least once a week` +`Children at home : 0`, data = train, family = 'binomial')
+summary(model0)
+vif(model0)
+
+```
+Removing insignificant variables: gender, 45-54 and 75+
+
+```{r}
+model0<- glm(`Interested in sustainable range`~ `data$Age25-34`+`data$Age35-44`+`data$Age45-54`+`data$Age55-64`+`data$Age65-74`+`Children at home : 0`+`Occupation: Service Sector`+`Watches catch-up TV / VoD with ads at least once a week`+`Interests : vegetarian products`+`Children at home : 0`, data = train, family = 'binomial')
+summary(model0)
+```
+Removing age45-54 as its insignificant
+```{r}
+model0<- glm(`Interested in sustainable range`~ `data$Age25-34`+`data$Age35-44`+`data$Age55-64`+`data$Age65-74`+`Children at home : 0`+`Occupation: Service Sector`+`Watches catch-up TV / VoD with ads at least once a week`+`Interests : vegetarian products`+`Children at home : 0`, data = train, family = 'binomial')
+summary(model0)
+
+```
+
+
+checking for accuracy and overfitting
+
+```{r}
+model0_train<- predict(model0, train, type = "response")
+predict0_train<- ifelse(model0_train>0.5, 1,0)
+train0_model_prob<- table(predict0_train, train$`Interested in sustainable range`)
+train0_model_prob
+sum(diag(train0_model_prob))/sum(train0_model_prob)
+
+# we have a 71.56% accuracy
+
+model0_test<- predict(model0, test, type = "response")
+predict0_test<- ifelse(model0_test>0.5, 1,0)
+test0_model_prob<- table(predict0_test, test$`Interested in sustainable range`)
+test0_model_prob
+sum(diag(test0_model_prob))/sum(test0_model_prob)
+
+# 72.07% accuracy
+```
+
+
+Now using the same set of variables to start with, i wanted to conduct an AIC step-wise regression test to compare what variables were chosen in the final model with 'model0'. This step-wise regression chooses the combination of variables with the minimmum value of Akaike Information Criterion (AIC). The AIC is the estimation prediction error which evaluates how well a model fits to some data. 
+
+```{r}
+
+model1<- glm(train$`Interested in sustainable range`~ train$Gender+ train$`data$Age25-34`+train$`data$Age35-44`+train$`data$Age45-54`+train$`data$Age55-64`+train$`data$Age65-74`+train$`data$Age75+`+ train$`Interests : vegetarian products`+ train$`Occupation: Service Sector`+ train$`Internet: light user`+ train$`If an advert on the Internet looks interesting I will click on it`+ train$`Watches catch-up TV / VoD with ads at least once a week`+ train$`I look for the lowest possible prices when I go shopping`+ train$`Children at home : 0`+ train$`Uses Netflix, at least once a week`, data = train, family = 'binomial')
+summary(model1)
+
+```
+Conducted an AIC step test to choose the combinations of these variables with the lowest AIC.
+
+```{r}
+model1_Aic<- stepAIC(model1)
+summary(model1_Aic)
+
+```
+All variables in the model are significant with a 99% confidence interval, now need to check the VIF score to check the variables in the model are correlated. Now checking for multicollinearity
+
+
+```{r}
+vif(model1_Aic)
+
+```
+The vif of netflix was considerably higher than the rest of the variables so needed to be removed from the model
+
+```{r}
+model1_Aic1<- glm(`Interested in sustainable range`~ `data$Age25-34`+`data$Age35-44`+`data$Age45-54`+`data$Age55-64`+`data$Age65-74`+ `Interests : vegetarian products`+ `Occupation: Service Sector`+ `Internet: light user`+ `If an advert on the Internet looks interesting I will click on it`+ `Watches catch-up TV / VoD with ads at least once a week`+ `Children at home : 0`, data = train, family = 'binomial')
+summary(model1_Aic1)
+vif(model1_Aic1)
+```
+age 45-54 is no longer significant so going to take that out
+
+```{r}
+model1_Aic2<- glm(`Interested in sustainable range`~ `data$Age25-34`+`data$Age35-44`+`data$Age55-64`+`data$Age65-74`+ `Interests : vegetarian products`+ `Occupation: Service Sector`+ `Internet: light user`+ `If an advert on the Internet looks interesting I will click on it`+ `Watches catch-up TV / VoD with ads at least once a week`+ `Children at home : 0`, data = train, family = 'binomial')
+summary(model1_Aic2)
+vif(model1_Aic2)
+```
+All variables are considered very significant and values for vif is lower than 28 which i am going to deem acceptable.
+
+Now going to test accuracy of this model, then compare the accuracy with the test data to check for overfitting.
+
+
+```{r}
+m1_Aic2_train<- predict(model1_Aic2, train, type = "response")
+
+pred1_Aic2_train<- ifelse(m1_Aic2_train>0.5, 1,0)
+
+train_m1_Aic2prob<- table(pred1_Aic2_train, train$`Interested in sustainable range`)
+train_m1_Aic2prob
+sum(diag(train_m1_Aic2prob))/sum(train_m1_Aic2prob)
+# Gives a 71.97% accuracy
+
+m1_Aic2_test<- predict(model1_Aic2, test, type = "response")
+
+pred1_Aic2_test<- ifelse(m1_Aic2_test>0.5, 1,0)
+
+test_m1_Aic2prob<- table(pred1_Aic2_test, test$`Interested in sustainable range`)
+test_m1_Aic2prob
+sum(diag(test_m1_Aic2prob))/sum(test_m1_Aic2prob)
+# Gives a 72.03%
+
+```
+
+The model gives a very similar accuracy for both the test and train data which suggests there is no evidence of overfitting.
+
+The test accuracy is 0.04 lower than the previous model, however the value of AIC is lower and  the residual deviance is also lower which means that the log likelihood of our model is close to the log-likelihood of the saturated model. Thus outweighing the slight difference in accuracy.
+
+
+Out of interest, i am going to conduct an AIC test on all the variables to see what variables it outputs.
+
+```{r}
+full_model<- glm(`Interested in sustainable range`~.,family="binomial", data=train)
+modelAic<- stepAIC(full_model)
+
+```
+
+This is the final model that came from the step-wise regression.
+```{r}
+summary(modelAic)
+vif(modelAic)
+
+```
+
+
+```{r}
+# now trying the model with the lowest AIC
+
+modelAic_train<- predict(modelAic, train, type = "response")
+predictAic_train<- ifelse(modelAic_train>0.5, 1,0)
+train_model_prob_Aic<- table(predictAic_train, train$`Interested in sustainable range`)
+train_model_prob_Aic
+sum(diag(train_model_prob_Aic))/sum(train_model_prob_Aic)
+
+modelAic_test<- predict(modelAic, test, type = "response")
+predictAic_test<- ifelse(modelAic_test>0.5, 1,0)
+test_model_prob_Aic<- table(predictAic_test, test$`Interested in sustainable range`)
+test_model_prob_Aic
+sum(diag(test_model_prob_Aic))/sum(test_model_prob_Aic)
+
+
+
+```
+
+This model has an accuracy of 79.97%, with only a slight amount of overfitting. AIC value of 6339.2 and residual deviance of 6253.2, all of which are much lower then model1_Aic2. However, the variables included break the assumption of a logistic regression model. 
+
+From the modelAic model, i check the vif value and take out the highest values.
+
+```{r}
+mod_vif_bel_30<- glm(`Interested in sustainable range`~ `data$Age35-44`+`data$Age45-54`+`data$Age55-64`+`data$Age75+` + `Occupation: Director / Managerial`+`Occupation: Office Worker`+`Occupation: Skilled / Manual Worker`+ `Occupation: Unemployed`+`Highest qualification achieved: GCSE or equivalent`+`Highest qualification achieved: A-level or equivalent`+`Children at home : 0`+Gender+`Occupation: Service Sector`+`Children at home : 0`+`Highest qualification achieved: A-level or equivalent`+ `Interests : antiques or fine art` +`Magazines read : celebrity` +`Internet: moderate user` + `Watches ITV` +`Watches Sky Atlantic` + `I prefer not to shop in major high street chains` +
+`Has bought something after seeing an email ad in the past 12 months` + `Has a current account with a neo challenger bank` +`Car shares journey to work`, data = train, family = 'binomial')
+
+summary(mod_vif_bel_30)
+
+
+
+```
+
+removing variables that are insignificant at 5%: gender, bank account, internet moderate user, 55-64 and GCSE
+
+
+```{r}
+mod_vif_bel_30<- glm(`Interested in sustainable range`~ `data$Age35-44`+`data$Age55-64`+`data$Age75+` + `Occupation: Director / Managerial`+`Occupation: Office Worker`+`Occupation: Skilled / Manual Worker`+ `Occupation: Unemployed`+`Highest qualification achieved: A-level or equivalent`+`Children at home : 0`+`Occupation: Service Sector`+`Children at home : 0`+`Highest qualification achieved: A-level or equivalent`+ `Interests : antiques or fine art` +`Magazines read : celebrity` + `Watches ITV` +`Watches Sky Atlantic` + `I prefer not to shop in major high street chains` +
+`Has bought something after seeing an email ad in the past 12 months` +`Car shares journey to work`, data = train, family = 'binomial')
+summary(mod_vif_bel_30)
+vif(mod_vif_bel_30)
+
+```
+
+Removing more insignificant variables,
+```{r}
+mod_vif_bel_30<- glm(`Interested in sustainable range`~ `data$Age35-44`+`data$Age55-64`+`data$Age75+` + `Occupation: Director / Managerial`+`Occupation: Office Worker`+ `Occupation: Unemployed`+`Highest qualification achieved: A-level or equivalent`+`Children at home : 0`+`Occupation: Service Sector`+`Children at home : 0`+`Highest qualification achieved: A-level or equivalent`+ `Interests : antiques or fine art` +`Magazines read : celebrity` + `Watches ITV` +`Watches Sky Atlantic` +
+`Has bought something after seeing an email ad in the past 12 months` +`Car shares journey to work`, data = train, family = 'binomial')
+summary(mod_vif_bel_30)
+vif(mod_vif_bel_30)
+
+```
+
+
+
+Going to check each vif value and remove the highest
+
+```{r}
+modelvif_train<- predict(mod_vif_bel_30, train, type = "response")
+predict_vif_train<- ifelse(modelvif_train>0.5, 1,0)
+train_model_prob_vif<- table(predict_vif_train, train$`Interested in sustainable range`)
+train_model_prob_vif
+sum(diag(train_model_prob_vif))/sum(train_model_prob_vif)
+
+#72.00% accuracy
+
+# test
+modelvif_prob<- predict(mod_vif_bel_30, test, type = "response")
+predict_vif<- ifelse(modelvif_prob>0.5, 1,0)
+test_model_prob_vif<- table(predict_vif, test$`Interested in sustainable range`)
+test_model_prob_vif
+sum(diag(test_model_prob_vif))/sum(test_model_prob_vif)
+
+#72.37% accuracy
+
+```
+
+To conclude each of the models:
+models: model0, model1Aic2 and model_vif_bel_30 all abide by the logistic regression assumptions.
+
+model0- has the highest residual deviance (8190.4) and AIC value (8208.4) with the accuracy (72.07%).
+model1Aic2- second highest residual deviance(8107.4), AIC value (8129.4) accuracy(72.03%)
+model_vif_bel_30- residual deviance(7904.9), AIC value (7940.9), accuracy (72.37%)
+So the last model would be the most appropriate to choose out of them 3.
+
+ModelAic- residual deviance (6253.2), AIC value (6339.2) and accuracy (80.0%)
+This model is definately the best one out of all of them however breaks some of the assumptions, when testing accuracy as the performance this one should be used.
+
+I am going to compare the results from both: 'model_vif_bel_30' and 'ModelAic'
+
+
+
+Now applying our models to the second data set. Im going to convert Age using one hot coding and gender into an integer variable.
+```{r}
+data2<- CACI_Dataset_2
+
+
+data2<- data2 %>% mutate(Gender= replace(Gender, Gender=='M',1))
+data2<- data2 %>% mutate(Gender= replace(Gender, Gender=='F',2))
+data2<- data2 %>% mutate(Gender= replace(Gender, Gender=='O',3))
+
+data2$Gender<- as.integer(data2$Gender)
+data2$Gender
+
+data2
+
+```
+```{r}
+class(data2)
+
+data3<- model.matrix(data2$`Customer ID`~data2$Age)[,-1]
+data3
+
+#new data is the set where it includes one hot coding for age, now just need to remove the original age column
+
+newdata2<- cbind(data3,data2)
+
+# removing the age column
+
+newdata2<- newdata2[,-c(9)]
+newdata2
+
+```
+renaming so i can use the same model
+
+```{r}
+
+
+newdata2<- rename(newdata2, c("`data2$Age25-34'"="data$Age25-34"))
+newdata2<- rename(newdata2, c("data2$Age35-44"="data$Age35-44"))
+newdata2<- rename(newdata2, c("data2$Age45-54"="data$Age45-54"))
+newdata2<- rename(newdata2, c("data2$Age55-64"="data$Age55-64"))
+newdata2<- rename(newdata2, c("data2$Age65-74"="data$Age65-74"))
+newdata2<- rename(newdata2, c("data2$Age75+"="data$Age75+"))
+
+newdata2
+
+
+```
+Making two new data sets to implement the probabilities for both models. where m and p are vectors with these probabilities.
+
+```{r}
+
+mod_bel30_newdata2<- predict(mod_vif_bel_30, newdata2, type = "response")
+m<- as.vector(mod_bel30_newdata2)
+m
+
+modelAic_newdata2<- predict(modelAic, newdata2, type = "response")
+p<- as.vector(modelAic_newdata2)
+p
+```
+
+Adding a new column in each
+```{r}
+
+AICdata<-newdata2
+AICdata$interested<-'perc'
+
+
+newdata2$interested<- 'perc'
+newdata2
+
+```
+
+
+```{r}
+
+
+
+
+for (i in 1:2500) {
+  
+  newdata2$interested[i]<- m[i]
+  AICdata$interested[i]<-p[i]
+}
+
+newdata2
+AICdata
+```
+
+
+
+
+```{r}
+final_data_vif_bel30<- newdata2 %>% arrange(desc(interested))
+final_data_AIC<- AICdata %>% arrange(desc(interested))
+
+```
+
+This is the final list of the Customer ID of the 250 people that should be contacted with the percentage chance the model has predicted:
+
+using model_vif_bel_30
+```{r}
+final_data_vif_bel30$`Customer ID`[1:250]
+final_data_vif_bel30$interested[1:250]
+```
+
+using modelAic
+```{r}
+final_data_AIC$`Customer ID`[1:250]
+final_data_AIC$interested[1:250]
+```
+
+Possible Extensions:
+
+More methods other than logistic regression should be used to compare the results to try and further improve the model development. An ensemble method, like random forests, could be incorporated where you compare the outputs of each model to test the accuracy. An example of this here is to compare which customers came up in the top 250 people in both models as it adds assurance that that person should be included. 
+
+According to each model, the percentage chance of the 250th person being interested is above 70% (2.s.f). However, if the people were picked at random and assuming the peoples interest are evenly distributed then only 75 people will receive the email with an interest above 70%.
+
+
+
+
+
